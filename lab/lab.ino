@@ -5,18 +5,46 @@
 
 #define fallingPin 3
 #define windDirPin A7
-//#define MAC_6    0x73
-#define MAC_6    0x62
+#define MAC_6    0x73
+//#define MAC_6    0x62
 static uint8_t mymac[6] = { 0x44, 0x76, 0x58, 0x10, 0x00, MAC_6 };
 
-byte server[] = { 10,6,1,1 }; // MQTT-palvelimen IP-osoite
+byte server[] = { 10,6,0,21 }; // MQTT-palvelimen IP-osoite
 unsigned int Port = 1883;  // MQTT-palvelimen portti
 EthernetClient ethClient; // Ethernet-kirjaston client-olio
+void callback(char* topic, byte* payload, unsigned int length);
 PubSubClient client(server, Port, ethClient); // PubSubClient-olion luominen
 
 #define outTopic   "ICT4_out_2020" // Aihe, jolle viesti lähetetään
-char* clientId = "a731fsd4"; // MQTT-clientin tunniste
+char bufa[50];
+char* clientId = "aaaaaaa"; // MQTT-clientin tunniste
+char* deviceId = "Benguin24";
+char* deviceSecret = "tamk";
 
+int avgDir = 0;
+double avgSpeed = 0;
+
+void send_MQTT_message() {
+    if (!client.connected()) { // Tarkistetaan onko yhteys MQTT-brokeriin muodostettu
+        connect_MQTT_server(); // Jos yhteyttä ei ollut, kutsutaan yhdistä -funktiota
+    }
+    if (client.connected()) { // Jos yhteys on muodostettu
+        sprintf(bufa, "IOTJS={\"S_name1\":\”Benguin_windSpeed\",\"S_value1\":%0.2f}", avgSpeed);
+        client.publish(outTopic, bufa); // Lähetetään viesti MQTT-brokerille
+        Serial.println("Message sent to MQTT server."); // Tulostetaan viesti onnistuneesta lähettämisestä
+    } else {
+        Serial.println("Failed to send message: not connected to MQTT server."); // Ei yhteyttä -> Yhteysvirheilmoitus
+    }
+}
+
+void connect_MQTT_server() { 
+    Serial.println("Connecting to MQTT"); // Tulostetaan vähän info-viestiä
+    if (client.connect(clientId, deviceId, deviceSecret)) { // Tarkistetaan saadaanko yhteys MQTT-brokeriin
+        Serial.println("Connected OK"); // Yhdistetty onnistuneesti
+    } else {
+        Serial.println("Connection failed."); // Yhdistäminen epäonnistui
+    }    
+}
 
 
 const byte ROWS = 1;
@@ -49,11 +77,9 @@ boolean degDirToggle = false;
 int analogVal = 0;
 double windV = 0;
 
+
 const int rs = 8, en = 6, d4 = 5, d5 = 4, d6 = 7, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-//LiquidCrystal lcd(4, 5, A0, A1, A2, A3);
-
-//void fetchIP();
 
 void setup() {
   lcd.begin(20, 4);
@@ -94,19 +120,21 @@ void loop() {
    if(displayMillis2+5000 <= millis()){
       clearSpecificPart(3);
       lcd.setCursor(0,3);
-      lcd.print("S: " + String(totalSpeed/5) + " D: " + String(round(totalDir/5)));
+      avgSpeed = totalSpeed/5;
+      avgDir = round(totalDir/5);
+      lcd.print("S: " + String(avgSpeed) + " D: " + String(avgDir));
       displayMillis2 = millis();
       totalSpeed =0;
       totalDir =0;
       send_MQTT_message(); // Kutsutaan MQTT-viestin lähettämis-funktiota
+      avgSpeed = 0;
+      avgDir = 0;
   }
 }
 
 void displayLCD() {
-   //lcd.clear();
    clearSpecificPart(0);
    clearSpecificPart(1);
-   //clearSpecificPart(2);
    lcd.setCursor(0,0);
    if (freqWindToggle) {
       // Display speed
@@ -122,11 +150,8 @@ void displayLCD() {
    } else {
       lcd.print(String(voltToDir(windV)));
    }
-//   lcd.setCursor(0,2);
-//   //lcd.print("IP: " + String(Ethernet.localIP()));
-//   lcd.print(Ethernet.localIP());
-
 }
+
 double freqToWindSpeed(double freq) {
   //return ((0.0019*pow(freq, 3))-(0.0936*pow(freq,2)) + (1.9827*freq) - 5.0893);
   return -0.24+(freq * 0.699);
@@ -141,7 +166,6 @@ int voltToDeg(double windV) {
 
 String voltToDir(double windV){
     String directions[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"};
-    //int index = (int)(floor((voltToDeg(windV)) + 22.5) / 45) % 8;
     int index = round((voltToDeg(windV)) / 45);
     return directions[index];
 }
@@ -171,26 +195,7 @@ void fetchIP() {
   delay(1500);
 }
 
-void send_MQTT_message() {
-    if (!client.connected()) { // Tarkistetaan onko yhteys MQTT-brokeriin muodostettu
-        connect_MQTT_server(); // Jos yhteyttä ei ollut, kutsutaan yhdistä -funktiota
-    }
-    if (client.connected()) { // Jos yhteys on muodostettu
-        client.publish(outTopic, "Hello from MQTT!"); // Lähetetään viesti MQTT-brokerille
-        Serial.println("Message sent to MQTT server."); // Tulostetaan viesti onnistuneesta lähettämisestä
-    } else {
-        Serial.println("Failed to send message: not connected to MQTT server."); // Ei yhteyttä -> Yhteysvirheilmoitus
-    }
-}
 
-void connect_MQTT_server() { 
-    Serial.println("Connecting to MQTT"); // Tulostetaan vähän info-viestiä
-    if (client.connect(clientId)) { // Tarkistetaan saadaanko yhteys MQTT-brokeriin
-        Serial.println("Connected OK"); // Yhdistetty onnistuneesti
-    } else {
-        Serial.println("Connection failed."); // Yhdistäminen epäonnistui
-    }    
-}
 
 void clearSpecificPart(int row) {
   lcd.setCursor(0, row);
