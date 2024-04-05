@@ -10,26 +10,29 @@
 static uint8_t mymac[6] = { 0x44, 0x76, 0x58, 0x10, 0x00, MAC_6 };
 char bufa[80];
 char bufa2[80];
-byte server[] = { 10,6,0,21 }; // MQTT-palvelimen IP-osoite
-unsigned int Port = 1883;  // MQTT-palvelimen portti
-EthernetClient ethClient; // Ethernet-kirjaston client-olio
-PubSubClient client(server, Port, ethClient); // PubSubClient-olion luominen
+byte server[] = { 10,6,0,21 }; 
+unsigned int Port = 1883;  
+EthernetClient ethClient; 
+PubSubClient client(server, Port, ethClient); 
 
 #define outTopic   "ICT4_out_2020" // Aihe, jolle viesti lähetetään
 int avgSpeed = 0;
 int avgDir = 0;
-char* clientId = "benguin24"; 
+char* clientId = "benguin24";
+boolean mqttSend = false; 
 
 void send_MQTT_message() {
     if (!client.connected()) { // Tarkistetaan onko yhteys MQTT-brokeriin muodostettu
         connect_MQTT_server(); // Jos yhteyttä ei ollut, kutsutaan yhdistä -funktiota
     }
     if (client.connected()) { // Jos yhteys on muodostettu
-        sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%d}", avgSpeed);
+        if(mqttSend) {
+          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%d}", avgDir);
+        } else {
+          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%d}", avgSpeed);
+        }
         Serial.println(bufa);
         client.publish(outTopic, bufa); // Lähetetään viesti MQTT-brokerille
-        sprintf(bufa2, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%d}", avgDir);
-        client.publish(outTopic, bufa2); // Lähetetään viesti MQTT-brokerille
         Serial.println("Message sent to MQTT server."); // Tulostetaan viesti onnistuneesta lähettämisestä
     } else {
         Serial.println("Failed to send message: not connected to MQTT server."); // Ei yhteyttä -> Yhteysvirheilmoitus
@@ -50,8 +53,8 @@ const byte COLS = 4;
 char hexaKeys[ROWS][COLS] = {
   {'1', '2', '3', 'A'},
 };
-byte rowPins[ROWS] = {A2}; 
-byte colPins[COLS] = {A3, A4, A5, A6}; 
+byte rowPins[ROWS] = {A4}; 
+byte colPins[COLS] = {A0, A1, A2, A3}; 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
 
 volatile unsigned long previousMillis = 0;
@@ -66,6 +69,7 @@ double totalDir =0;
 
 boolean freqWindToggle = true;
 boolean degDirToggle = false;
+
 int analogVal = 0;
 double windV = 0;
 
@@ -92,6 +96,9 @@ void loop() {
     degDirToggle = !degDirToggle; 
   }
   if(customKey == '3'){
+    mqttSend = !mqttSend;
+  }
+  if(customKey == 'A'){
     displayD();
   }
 
@@ -111,6 +118,7 @@ void loop() {
    if(displayMillis2+5000 <= millis()){
       avgSpeed = round(totalSpeed/5);
       avgDir = round(totalDir/5);
+      Serial.println("Dir:" + String(avgDir));
       clearSpecificPart(3);
       lcd.setCursor(0,3);
       lcd.print("S: " + String(avgSpeed) + " D: " + String(avgDir));
@@ -207,7 +215,9 @@ void displayD(){
         {B00011, B00001, B10011, B10010, B01100, B00000, B00000, B00000}, // tD1
     };
     for(int j =0; j< 16; j++){
-    lcd.clear();
+//    lcd.clear();
+    clearSpecificPart(0);
+    clearSpecificPart(1);
     int positions[8][2] = {{j, 0},{j, 1}, {j+1, 0},{j+1, 1},{j+2, 0},{j+2, 1},{j+3, 0},{j+3, 1}};
     for (int i = 0; i < 8; i++) {
         lcd.createChar(i, customCharacters[i]);
