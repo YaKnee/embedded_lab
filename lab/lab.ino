@@ -8,7 +8,8 @@
 #define MAC_6    0x73
 //#define MAC_6    0x62
 static uint8_t mymac[6] = { 0x44, 0x76, 0x58, 0x10, 0x00, MAC_6 };
-char bufa[80] = "Hello Benguin";
+char bufa[80];
+char bufa2[80];
 byte server[] = { 10,6,0,21 }; // MQTT-palvelimen IP-osoite
 unsigned int Port = 1883;  // MQTT-palvelimen portti
 EthernetClient ethClient; // Ethernet-kirjaston client-olio
@@ -27,6 +28,8 @@ void send_MQTT_message() {
         sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%d}", avgSpeed);
         Serial.println(bufa);
         client.publish(outTopic, bufa); // Lähetetään viesti MQTT-brokerille
+        sprintf(bufa2, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%d}", avgDir);
+        client.publish(outTopic, bufa2); // Lähetetään viesti MQTT-brokerille
         Serial.println("Message sent to MQTT server."); // Tulostetaan viesti onnistuneesta lähettämisestä
     } else {
         Serial.println("Failed to send message: not connected to MQTT server."); // Ei yhteyttä -> Yhteysvirheilmoitus
