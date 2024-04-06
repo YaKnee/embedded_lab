@@ -7,7 +7,7 @@
 #define windDirPin A7
 
 //-----------------------------Server-----------------------
-byte server[] = { 10,6,0,21 }; 
+byte server[] = { HIDDEN }; 
 unsigned int Port = 1883;  
 EthernetClient ethClient; 
 PubSubClient client(server, Port, ethClient); 
