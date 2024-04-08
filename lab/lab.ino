@@ -7,7 +7,7 @@
 #define windDirPin A7
 
 //-----------------------------Server-----------------------
-byte server[] = { 10,6,0,21 }; 
+byte server[] = { HIDDEN }; 
 unsigned int Port = 1883;  
 EthernetClient ethClient; 
 PubSubClient client(server, Port, ethClient); 
@@ -76,7 +76,7 @@ char hexaKeys[ROWS][COLS] = {
   {'1', '2', '3', 'A'},
 };
 byte rowPins[ROWS] = {A4}; 
-byte colPins[COLS] = {A0, A1, A2, A3}; 
+byte colPins[COLS] = {A3, A2, A1, A0}; 
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
 
 const int rs = 8, en = 6, d4 = 5, d5 = 4, d6 = 7, d7 = 2;
@@ -153,7 +153,8 @@ void displayLCD() {
    lcd.setCursor(0,1);
    lcd.print("Dir: ");
    if(degDirToggle) {
-      lcd.print(String(voltToDeg(windV)) + "Deg");
+      lcd.print(String(voltToDeg(windV)));
+      lcd.write(0xDF);
    } else {
       lcd.print(String(voltToDir(windV)));
    }
