@@ -1,32 +1,37 @@
+#include <Ethernet.h>
 #include <Keypad.h>
 #include <LiquidCrystal.h>
-#include <Ethernet.h>
 #include <PubSubClient.h>
+#include <stdlib.h>
 
 #define fallingPin 3
 #define windDirPin A7
 
 //-----------------------------Server-----------------------
-byte server[] = { HIDDEN }; 
+byte server[] = { 10,6,0,21 };
 unsigned int Port = 1883;  
 EthernetClient ethClient; 
 PubSubClient client(server, Port, ethClient); 
 
 #define outTopic   "ICT4_out_2020"
-int avgSpeed = 0;
-int avgDir = 0;
+double avgSpeed = 0;
+double avgDir = 0;
 boolean mqttSend = false; 
-char bufa[80];
+char bufa[100];
 
 void send_MQTT_message() {
+  char temp[5];
+  dtostrf(avgSpeed, -5, 2, temp);
+  char temp2[6];
+  dtostrf(avgDir, -6, 2, temp2);
     if (!client.connected()) { 
         connect_MQTT_server(); 
     }
     if (client.connected()) { 
         if(mqttSend) {
-          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%d}", avgDir);
+          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%s, \"S_name2\":\"Benguin_windSpeed\",\"S_value2\":%s}", temp2, temp);
         } else {
-          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%d}", avgSpeed);
+          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%s}", temp);
         }
         client.publish(outTopic, bufa);
         Serial.println("Message sent to MQTT server."); 
@@ -120,8 +125,8 @@ void loop() {
   }
   //Every 5 Seconds
   if(displayMillis2+5000 <= millis()){
-      avgSpeed = round(totalSpeed/5);
-      avgDir = round(totalDir/5);
+      avgSpeed = totalSpeed/5;
+      avgDir = totalDir/5;
       clearSpecificPart(3);
       lcd.setCursor(0,3);
       lcd.print("S: " + String(avgSpeed) + " D: " + String(avgDir));
@@ -156,7 +161,7 @@ void displayLCD() {
       lcd.print(String(voltToDeg(windV)));
       lcd.write(0xDF);
    } else {
-      lcd.print(String(voltToDir(windV)));
+      lcd.print(voltToDir(windV));
    }
    lcd.setCursor(0,2);
    lcd.print(Ethernet.localIP());
@@ -166,15 +171,22 @@ double freqToWindSpeed(double freq) {
   return -0.24+(freq * 0.699);
 }
 
-int voltToDeg(double windV) {
+double voltToDeg(double windV) {
   if (windV <= 1.2) return 0;
-  if (windV >= 5) return 360;
-  return round((windV/5) * 360);
+  if (windV > 1.2 && windV <= 1.67)  return ((windV - 1.2) / 0.47) * 45;
+  if (windV > 1.67 && windV <= 2.15) return ((windV - 1.67)/ 0.48) * 45 + 45;
+  if (windV > 2.15 && windV <= 2.63) return ((windV - 2.15)/ 0.48) * 45 + 90;
+  if (windV > 2.63 && windV <= 3.10) return ((windV - 2.63)/ 0.47) * 45 + 135;
+  if (windV > 3.10 && windV <= 3.58) return ((windV - 3.10)/ 0.48) * 45 + 180;
+  if (windV > 3.58 && windV <= 4.05) return ((windV - 3.58)/ 0.47) * 45 + 225;
+  if (windV > 4.05 && windV <= 4.53) return ((windV - 4.05)/ 0.48) * 45 + 270;
+  if (windV > 4.53 && windV < 5) return ((windV - 4.53)/(0.47)) * 45 + 315;
+  return 360;
 }
 
 String voltToDir(double windV){
     String directions[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW", "N"};
-    int index = round((voltToDeg(windV)) / 45);
+    int index = round(voltToDeg(windV) / 45);
     return directions[index];
 }
 
