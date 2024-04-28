@@ -2,79 +2,11 @@
 #include <Keypad.h>
 #include <LiquidCrystal.h>
 #include <PubSubClient.h>
-#include <stdlib.h>
 
 #define fallingPin 3
 #define windDirPin A7
 
-//-----------------------------Server-----------------------
-byte server[] = { 10,6,0,21 };
-unsigned int Port = 1883;  
-EthernetClient ethClient; 
-PubSubClient client(server, Port, ethClient); 
-
-#define outTopic   "ICT4_out_2020"
-double avgSpeed = 0;
-double avgDir = 0;
-boolean mqttSend = false; 
-char bufa[100];
-
-void send_MQTT_message() {
-  char temp[5];
-  dtostrf(avgSpeed, -5, 2, temp);
-  char temp2[6];
-  dtostrf(avgDir, -6, 2, temp2);
-    if (!client.connected()) { 
-        connect_MQTT_server(); 
-    }
-    if (client.connected()) { 
-        if(mqttSend) {
-          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%s, \"S_name2\":\"Benguin_windSpeed\",\"S_value2\":%s}", temp2, temp);
-        } else {
-          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%s}", temp);
-        }
-        client.publish(outTopic, bufa);
-        Serial.println("Message sent to MQTT server."); 
-    } else {
-        Serial.println("Failed to send message: not connected to MQTT server."); 
-    }
-}
-
-char* clientId = "benguin24";
-
-void connect_MQTT_server() { 
-    Serial.println("Connecting to MQTT");
-    if (client.connect(clientId)) { 
-        Serial.println("Connected OK");
-    } else {
-        Serial.println("Connection failed."); 
-    }    
-}
-
-//---------------------------------ETHERNET----------------------------
-static uint8_t mymac[6] = { 0x44, 0x76, 0x58, 0x10, 0x00, 0x73 };
-
-void fetchIP() {
-  byte connection = 1;
-  connection = Ethernet.begin(mymac);
-  Serial.print(F("\nW5100 Revision "));
-  if (connection == 0) {
-    Serial.println(F("Failed to access Ethernet controller"));
-  }
-  Serial.println(F("Setting up DHCP"));
-  Serial.print("Connected with IP: ");
-  Serial.println(Ethernet.localIP());
-  delay(1500);
-}
-
-
-//----------------------------BOARD--------------------------------------
-volatile unsigned long previousMillis = 0, displayMillis = 0, displayMillis2 = 0, pulseWidth = 0;
-double frequency = 0, totalSpeed = 0, totalDir = 0, windV = 0;
-
-boolean freqWindToggle = true;
-boolean degDirToggle = false;
-
+//Keypad
 const byte ROWS = 1;
 const byte COLS = 4;
 char hexaKeys[ROWS][COLS] = {
@@ -82,13 +14,21 @@ char hexaKeys[ROWS][COLS] = {
 };
 byte rowPins[ROWS] = {A4}; 
 byte colPins[COLS] = {A3, A2, A1, A0}; 
-Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
-
+Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
+boolean freqWindToggle = true;
+boolean degDirToggle = false;
+boolean mqttSend = false; 
+//LCD
 const int rs = 8, en = 6, d4 = 5, d5 = 4, d6 = 7, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+//Calculation Variables
+volatile unsigned long previousMillis = 0, displayMillis = 0, displayMillis2 = 0, pulseWidth = 0;
+volatile double frequency = 0;
+double totalSpeed = 0, totalDir = 0, windV = 0, avgSpeed = 0, avgDir = 0;
 
 void setup() {
   lcd.begin(20, 4);
+  //in setup
   pinMode(fallingPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(fallingPin), detectFalling, FALLING);
   Serial.begin(9600);
@@ -96,7 +36,8 @@ void setup() {
 }
 
 void loop() {
-  windV = analogRead(windDirPin) / 204.6;
+  //in loop
+  windV = analogRead(windDirPin) / (1023 / 5);
 
   switch(customKeypad.getKey()) {
       case '1':
@@ -119,7 +60,7 @@ void loop() {
   //Every 1 Second
   if(displayMillis+1000 <= millis()){
       totalSpeed += freqToWindSpeed(frequency);
-      totalDir += voltToDeg (windV);
+      totalDir += voltToDeg(windV);
       displayLCD();
       displayMillis = millis();
   }
@@ -167,6 +108,13 @@ void displayLCD() {
    lcd.print(Ethernet.localIP());
 }
 
+void clearSpecificPart(int row) {
+  lcd.setCursor(0, row);
+  for (int i = 0; i <= 19; i++) {
+    lcd.print(' ');
+  }
+}
+
 double freqToWindSpeed(double freq) {
   return -0.24+(freq * 0.699);
 }
@@ -190,11 +138,56 @@ String voltToDir(double windV){
     return directions[index];
 }
 
-void clearSpecificPart(int row) {
-  lcd.setCursor(0, row);
-  for (int i = 0; i <= 19; i++) {
-    lcd.print(' ');
+static uint8_t mymac[6] = { 0x44, 0x76, 0x58, 0x10, 0x00, 0x73 };
+void fetchIP() {
+  byte connection = 1;
+  connection = Ethernet.begin(mymac);
+  Serial.print(F("\nW5100 Revision "));
+  if (connection == 0) {
+    Serial.println(F("Failed to access Ethernet controller"));
   }
+  Serial.println(F("Setting up DHCP"));
+  Serial.print("Connected with IP: ");
+  Serial.println(Ethernet.localIP());
+  delay(1500);
+}
+
+//Server and MQTT
+byte server[] = { 10,6,0,21 };
+unsigned int Port = 1883;  
+EthernetClient ethClient; 
+PubSubClient client(server, Port, ethClient); 
+#define outTopic "ICT4_out_2020"
+void send_MQTT_message() {
+    if (!client.connected()) { 
+        connect_MQTT_server(); 
+    }
+    if (client.connected()) { 
+        char temp[5];
+        dtostrf(avgSpeed, -5, 2, temp);
+        char temp2[6];
+        dtostrf(avgDir, -6, 2, temp2);
+        char bufa[100];
+        if(mqttSend) {
+          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windDir\",\"S_value1\":%s, \"S_name2\":\"Benguin_windSpeed\",\"S_value2\":%s}", temp2, temp);
+        } else {
+          sprintf(bufa, "IOTJS={\"S_name1\":\"Benguin_windSpeed\",\"S_value1\":%s}", temp);
+        }
+        client.publish(outTopic, bufa);
+        Serial.println("Message sent to MQTT server."); 
+    } else {
+        Serial.println("Failed to send message: not connected to MQTT server."); 
+    }
+}
+
+char* clientId = "benguin24";
+void connect_MQTT_server() { 
+    Serial.println("Connecting to MQTT");
+    if (client.connect(clientId)) { 
+        Serial.println("Connected OK");
+    } else {
+        Serial.println("Connection failed."); 
+    }    
 }
 
 void displayD(){
