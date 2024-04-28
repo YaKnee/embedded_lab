@@ -28,7 +28,6 @@ double totalSpeed = 0, totalDir = 0, windV = 0, avgSpeed = 0, avgDir = 0;
 
 void setup() {
   lcd.begin(20, 4);
-  //in setup
   pinMode(fallingPin, INPUT);
   attachInterrupt(digitalPinToInterrupt(fallingPin), detectFalling, FALLING);
   Serial.begin(9600);
@@ -36,7 +35,6 @@ void setup() {
 }
 
 void loop() {
-  //in loop
   windV = analogRead(windDirPin) / (1023 / 5);
 
   switch(customKeypad.getKey()) {
